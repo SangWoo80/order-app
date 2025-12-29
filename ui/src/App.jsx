@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import './App.css'
 
 function App() {
@@ -75,26 +75,65 @@ function App() {
     }
   ])
 
-  // 재고 데이터 (관리자 화면에서 사용)
-  const [inventory, setInventory] = useState([
-    { id: 1, name: '아메리카노 (ICE)', stock: 10 },
-    { id: 2, name: '아메리카노 (HOT)', stock: 10 },
-    { id: 3, name: '카페라떼', stock: 10 }
-  ])
 
   // 주문 데이터 (주문하기 화면에서 생성, 관리자 화면에서 표시)
-  const [orders, setOrders] = useState([
-    // 예시 주문 데이터
-    {
-      id: 1,
-      orderTime: new Date('2024-07-31T13:00:00'),
-      status: 'received', // 'received', 'preparing', 'completed'
-      items: [
-        { menuId: 1, menuName: '아메리카노(ICE)', quantity: 1, price: 4000 }
-      ],
-      totalAmount: 4000
+  const [orders, setOrders] = useState(() => {
+    const saved = localStorage.getItem('orders')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        return parsed.map(order => ({
+          ...order,
+          orderTime: new Date(order.orderTime)
+        }))
+      } catch (e) {
+        return []
+      }
     }
-  ])
+    // 예시 주문 데이터
+    return [
+      {
+        id: 1,
+        orderTime: new Date('2024-07-31T13:00:00'),
+        status: 'received', // 'received', 'preparing', 'completed'
+        items: [
+          { menuId: 1, menuName: '아메리카노(ICE)', quantity: 1, unitPrice: 4000, totalPrice: 4000, options: [] }
+        ],
+        totalAmount: 4000
+      }
+    ]
+  })
+
+  // 재고 데이터를 localStorage에서 로드
+  const [inventory, setInventory] = useState(() => {
+    const saved = localStorage.getItem('inventory')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        return [
+          { id: 1, name: '아메리카노 (ICE)', stock: 10 },
+          { id: 2, name: '아메리카노 (HOT)', stock: 10 },
+          { id: 3, name: '카페라떼', stock: 10 }
+        ]
+      }
+    }
+    return [
+      { id: 1, name: '아메리카노 (ICE)', stock: 10 },
+      { id: 2, name: '아메리카노 (HOT)', stock: 10 },
+      { id: 3, name: '카페라떼', stock: 10 }
+    ]
+  })
+
+  // 재고 데이터를 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('inventory', JSON.stringify(inventory))
+  }, [inventory])
+
+  // 주문 데이터를 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem('orders', JSON.stringify(orders))
+  }, [orders])
 
   // 장바구니 상태
   const [cart, setCart] = useState([])
@@ -180,7 +219,10 @@ function App() {
         menuId: item.menuId,
         menuName: item.menuName,
         quantity: item.quantity,
-        price: item.totalPrice
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        options: item.options,
+        optionNames: item.optionNames
       })),
       totalAmount: totalAmount
     }
@@ -214,18 +256,45 @@ function App() {
 
   // 주문 상태 변경
   const changeOrderStatus = (orderId, newStatus) => {
-    setOrders(orders.map(order =>
-      order.id === orderId ? { ...order, status: newStatus } : order
+    const order = orders.find(o => o.id === orderId)
+    if (!order) return
+
+    // 주문 상태 업데이트
+    setOrders(orders.map(o =>
+      o.id === orderId ? { ...o, status: newStatus } : o
     ))
+
+    // 주문 접수 시 재고 차감 (모든 아이템을 한 번에 처리)
+    if (newStatus === 'preparing' && order.status === 'received') {
+      setInventory(prevInventory => {
+        // 재고 차감 맵 생성
+        const stockDeductions = {}
+        order.items.forEach(item => {
+          const inventoryItem = prevInventory.find(inv => inv.id === item.menuId)
+          if (inventoryItem && inventoryItem.stock >= item.quantity) {
+            stockDeductions[item.menuId] = (stockDeductions[item.menuId] || 0) + item.quantity
+          }
+        })
+
+        // 모든 재고를 한 번에 업데이트
+        return prevInventory.map(inv => {
+          const deduction = stockDeductions[inv.id]
+          if (deduction) {
+            return { ...inv, stock: inv.stock - deduction }
+          }
+          return inv
+        })
+      })
+    }
   }
 
-  // 주문 통계 계산
-  const orderStats = {
+  // 주문 통계 계산 (useMemo로 최적화)
+  const orderStats = useMemo(() => ({
     total: orders.length,
     received: orders.filter(o => o.status === 'received').length,
     preparing: orders.filter(o => o.status === 'preparing').length,
     completed: orders.filter(o => o.status === 'completed').length
-  }
+  }), [orders])
 
   // 가격 포맷팅
   const formatPrice = (price) => {
@@ -234,6 +303,9 @@ function App() {
 
   // 날짜 포맷팅
   const formatDate = (date) => {
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+      return '날짜 없음'
+    }
     const month = date.getMonth() + 1
     const day = date.getDate()
     const hours = date.getHours().toString().padStart(2, '0')
@@ -250,7 +322,13 @@ function App() {
           {menus.map(menu => (
             <div key={menu.id} className="menu-card">
               <div className="menu-image">
-                <img src={menu.image} alt={menu.name} />
+                <img 
+                  src={menu.image} 
+                  alt={menu.name}
+                  onError={(e) => {
+                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect width="400" height="300" fill="%23f5f5f5"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999" font-family="sans-serif" font-size="16"%3E이미지 없음%3C/text%3E%3C/svg%3E'
+                  }}
+                />
               </div>
               <div className="menu-info">
                 <h3 className="menu-name">{menu.name}</h3>
@@ -393,7 +471,7 @@ function App() {
                   <div className="order-details">
                     {order.items.map((item, idx) => (
                       <div key={idx} className="order-item-detail">
-                        {item.menuName} x {item.quantity}
+                        {item.menuName}{item.optionNames ? item.optionNames : ''} x {item.quantity}
                       </div>
                     ))}
                   </div>
