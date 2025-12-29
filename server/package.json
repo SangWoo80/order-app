@@ -9,6 +9,7 @@
     "dev": "nodemon src/server.js",
     "db:create": "node src/database/create-db.js",
     "db:setup": "node src/database/setup.js",
+    "db:update-images": "node src/database/update-images.js",
     "db:test": "node -e \"import('./src/database/init.js').then(m => m.testConnection().then(() => process.exit(0)))\""
   },
   "keywords": [
