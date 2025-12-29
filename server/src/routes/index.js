@@ -1,10 +1,16 @@
 import express from 'express';
+import menusRouter from './menus.js';
+import ordersRouter from './orders.js';
 
 const router = express.Router();
 
-// API 라우트들을 여기에 추가할 예정
-// 예: router.use('/menus', menusRouter);
-// 예: router.use('/orders', ordersRouter);
+// 메뉴 관련 라우트
+router.use('/menus', menusRouter);
+console.log('메뉴 라우트 등록됨: /menus');
+
+// 주문 관련 라우트
+router.use('/orders', ordersRouter);
+console.log('주문 라우트 등록됨: /orders');
 
 export default router;
 

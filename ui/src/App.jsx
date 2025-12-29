@@ -1,139 +1,105 @@
 import { useState, useMemo, useEffect } from 'react'
 import './App.css'
+import { menuAPI, orderAPI } from './api/api.js'
 
 function App() {
   // 현재 화면 상태
   const [currentScreen, setCurrentScreen] = useState('order') // 'order' or 'admin'
 
   // 메뉴 데이터
-  const [menus] = useState([
-    {
-      id: 1,
-      name: '아메리카노(ICE)',
-      price: 4000,
-      description: '시원한 아이스 아메리카노',
-      image: 'https://images.unsplash.com/photo-1517487881594-2787fef5ebf7?w=400&h=300&fit=crop&q=80&auto=format',
-      options: [
-        { name: '샷 추가', price: 500 },
-        { name: '시럽 추가', price: 0 }
-      ]
-    },
-    {
-      id: 2,
-      name: '아메리카노(HOT)',
-      price: 4000,
-      description: '따뜻한 핫 아메리카노',
-      image: 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=400&h=300&fit=crop&q=80&auto=format',
-      options: [
-        { name: '샷 추가', price: 500 },
-        { name: '시럽 추가', price: 0 }
-      ]
-    },
-    {
-      id: 3,
-      name: '카페라떼',
-      price: 5000,
-      description: '부드러운 우유와 에스프레소의 조화',
-      image: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&h=300&fit=crop&q=80&auto=format',
-      options: [
-        { name: '샷 추가', price: 500 },
-        { name: '시럽 추가', price: 0 }
-      ]
-    },
-    {
-      id: 4,
-      name: '카푸치노',
-      price: 5000,
-      description: '에스프레소와 스팀 밀크의 완벽한 조합',
-      image: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=400&h=300&fit=crop&q=80&auto=format',
-      options: [
-        { name: '샷 추가', price: 500 },
-        { name: '시럽 추가', price: 0 }
-      ]
-    },
-    {
-      id: 5,
-      name: '바닐라라떼',
-      price: 5500,
-      description: '달콤한 바닐라 시럽이 들어간 라떼',
-      image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&h=300&fit=crop&q=80&auto=format',
-      options: [
-        { name: '샷 추가', price: 500 },
-        { name: '시럽 추가', price: 0 }
-      ]
-    },
-    {
-      id: 6,
-      name: '카라멜마키아토',
-      price: 6000,
-      description: '카라멜 시럽과 에스프레소의 달콤한 만남',
-      image: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=400&h=300&fit=crop&q=80&auto=format',
-      options: [
-        { name: '샷 추가', price: 500 },
-        { name: '시럽 추가', price: 0 }
-      ]
+  const [menus, setMenus] = useState([])
+  const [menusLoading, setMenusLoading] = useState(true)
+
+  // 메뉴 데이터 로드
+  useEffect(() => {
+    const loadMenus = async () => {
+      try {
+        setMenusLoading(true)
+        const menuData = await menuAPI.getMenus()
+        // API 응답을 프런트엔드 형식으로 변환
+        const formattedMenus = menuData.map(menu => ({
+          id: menu.id,
+          name: menu.name,
+          price: menu.price,
+          description: menu.description || '',
+          image: menu.image_url || '',
+          options: menu.options.map(opt => ({
+            id: opt.id,
+            name: opt.name,
+            price: opt.price
+          }))
+        }))
+        setMenus(formattedMenus)
+      } catch (error) {
+        console.error('메뉴 로드 오류:', error)
+        alert(`메뉴를 불러오는 중 오류가 발생했습니다.\n${error.message || '알 수 없는 오류'}`)
+      } finally {
+        setMenusLoading(false)
+      }
     }
-  ])
+    loadMenus()
+  }, [])
 
 
   // 주문 데이터 (주문하기 화면에서 생성, 관리자 화면에서 표시)
-  const [orders, setOrders] = useState(() => {
-    const saved = localStorage.getItem('orders')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        return parsed.map(order => ({
-          ...order,
-          orderTime: new Date(order.orderTime)
-        }))
-      } catch (e) {
-        return []
-      }
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+
+  // 재고 데이터
+  const [inventory, setInventory] = useState([])
+  const [inventoryLoading, setInventoryLoading] = useState(false)
+
+  // 주문 목록 로드
+  const loadOrders = async () => {
+    try {
+      setOrdersLoading(true)
+      const orderData = await orderAPI.getOrders()
+      // API 응답을 프런트엔드 형식으로 변환
+      const formattedOrders = orderData.map(order => ({
+        id: order.id,
+        orderTime: new Date(order.order_time),
+        status: order.status,
+        items: order.items.map(item => ({
+          menuId: item.menu_id,
+          menuName: item.menu_name,
+          quantity: item.quantity,
+          unitPrice: item.unit_price,
+          totalPrice: item.total_price,
+          options: item.options || [],
+          optionNames: item.options && item.options.length > 0 
+            ? ` (${item.options.map(opt => opt.option_name).join(', ')})` 
+            : ''
+        })),
+        totalAmount: order.total_amount
+      }))
+      setOrders(formattedOrders)
+    } catch (error) {
+      console.error('주문 목록 로드 오류:', error)
+    } finally {
+      setOrdersLoading(false)
     }
-    // 예시 주문 데이터
-    return [
-      {
-        id: 1,
-        orderTime: new Date('2024-07-31T13:00:00'),
-        status: 'received', // 'received', 'preparing', 'completed'
-        items: [
-          { menuId: 1, menuName: '아메리카노(ICE)', quantity: 1, unitPrice: 4000, totalPrice: 4000, options: [] }
-        ],
-        totalAmount: 4000
-      }
-    ]
-  })
+  }
 
-  // 재고 데이터를 localStorage에서 로드
-  const [inventory, setInventory] = useState(() => {
-    const saved = localStorage.getItem('inventory')
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch (e) {
-        return [
-          { id: 1, name: '아메리카노 (ICE)', stock: 10 },
-          { id: 2, name: '아메리카노 (HOT)', stock: 10 },
-          { id: 3, name: '카페라떼', stock: 10 }
-        ]
-      }
+  // 재고 목록 로드
+  const loadInventory = async () => {
+    try {
+      setInventoryLoading(true)
+      const inventoryData = await menuAPI.getInventory()
+      setInventory(inventoryData)
+    } catch (error) {
+      console.error('재고 목록 로드 오류:', error)
+    } finally {
+      setInventoryLoading(false)
     }
-    return [
-      { id: 1, name: '아메리카노 (ICE)', stock: 10 },
-      { id: 2, name: '아메리카노 (HOT)', stock: 10 },
-      { id: 3, name: '카페라떼', stock: 10 }
-    ]
-  })
+  }
 
-  // 재고 데이터를 localStorage에 저장
+  // 관리자 화면 진입 시 데이터 로드
   useEffect(() => {
-    localStorage.setItem('inventory', JSON.stringify(inventory))
-  }, [inventory])
-
-  // 주문 데이터를 localStorage에 저장
-  useEffect(() => {
-    localStorage.setItem('orders', JSON.stringify(orders))
-  }, [orders])
+    if (currentScreen === 'admin') {
+      loadOrders()
+      loadInventory()
+    }
+  }, [currentScreen])
 
   // 장바구니 상태
   const [cart, setCart] = useState([])
@@ -204,47 +170,75 @@ function App() {
   const totalAmount = cart.reduce((sum, item) => sum + item.totalPrice, 0)
 
   // 주문하기
-  const handleOrder = () => {
+  const handleOrder = async () => {
     if (cart.length === 0) {
       alert('장바구니가 비어있습니다.')
       return
     }
     
-    // 새 주문 생성
-    const newOrder = {
-      id: Date.now(),
-      orderTime: new Date(),
-      status: 'received', // 주문 접수 상태
-      items: cart.map(item => ({
-        menuId: item.menuId,
-        menuName: item.menuName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-        options: item.options,
-        optionNames: item.optionNames
-      })),
-      totalAmount: totalAmount
-    }
+    try {
+      // API 요청 형식으로 변환
+      const orderData = {
+        items: cart.map(item => {
+          const menu = menus.find(m => m.id === item.menuId)
+          const selectedOptions = menu?.options
+            .filter(opt => item.options.includes(opt.name))
+            .map(opt => ({
+              option_id: opt.id || 0,
+              option_name: opt.name,
+              option_price: opt.price
+            })) || []
+          
+          return {
+            menu_id: item.menuId,
+            menu_name: item.menuName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            total_price: item.totalPrice,
+            options: selectedOptions
+          }
+        }),
+        total_amount: totalAmount
+      }
 
-    setOrders([newOrder, ...orders])
-    alert(`주문이 완료되었습니다!\n총 금액: ${totalAmount.toLocaleString()}원`)
-    setCart([])
-    setSelectedOptions({})
+      const result = await orderAPI.createOrder(orderData)
+      
+      alert(`주문이 완료되었습니다!\n총 금액: ${totalAmount.toLocaleString()}원`)
+      setCart([])
+      setSelectedOptions({})
+      
+      // 관리자 화면이면 주문 목록 새로고침
+      if (currentScreen === 'admin') {
+        loadOrders()
+      }
+    } catch (error) {
+      console.error('주문 생성 오류:', error)
+      alert(`주문 생성 중 오류가 발생했습니다: ${error.message}`)
+    }
   }
 
   // 재고 증가
-  const increaseStock = (menuId) => {
-    setInventory(inventory.map(item =>
-      item.id === menuId ? { ...item, stock: item.stock + 1 } : item
-    ))
+  const increaseStock = async (menuId) => {
+    try {
+      const result = await menuAPI.updateInventory(menuId, 1)
+      // 재고 목록 새로고침
+      await loadInventory()
+    } catch (error) {
+      console.error('재고 증가 오류:', error)
+      alert(`재고 수정 중 오류가 발생했습니다: ${error.message}`)
+    }
   }
 
   // 재고 감소
-  const decreaseStock = (menuId) => {
-    setInventory(inventory.map(item =>
-      item.id === menuId && item.stock > 0 ? { ...item, stock: item.stock - 1 } : item
-    ))
+  const decreaseStock = async (menuId) => {
+    try {
+      const result = await menuAPI.updateInventory(menuId, -1)
+      // 재고 목록 새로고침
+      await loadInventory()
+    } catch (error) {
+      console.error('재고 감소 오류:', error)
+      alert(`재고 수정 중 오류가 발생했습니다: ${error.message}`)
+    }
   }
 
   // 재고 상태 확인
@@ -255,36 +249,15 @@ function App() {
   }
 
   // 주문 상태 변경
-  const changeOrderStatus = (orderId, newStatus) => {
-    const order = orders.find(o => o.id === orderId)
-    if (!order) return
-
-    // 주문 상태 업데이트
-    setOrders(orders.map(o =>
-      o.id === orderId ? { ...o, status: newStatus } : o
-    ))
-
-    // 주문 접수 시 재고 차감 (모든 아이템을 한 번에 처리)
-    if (newStatus === 'preparing' && order.status === 'received') {
-      setInventory(prevInventory => {
-        // 재고 차감 맵 생성
-        const stockDeductions = {}
-        order.items.forEach(item => {
-          const inventoryItem = prevInventory.find(inv => inv.id === item.menuId)
-          if (inventoryItem && inventoryItem.stock >= item.quantity) {
-            stockDeductions[item.menuId] = (stockDeductions[item.menuId] || 0) + item.quantity
-          }
-        })
-
-        // 모든 재고를 한 번에 업데이트
-        return prevInventory.map(inv => {
-          const deduction = stockDeductions[inv.id]
-          if (deduction) {
-            return { ...inv, stock: inv.stock - deduction }
-          }
-          return inv
-        })
-      })
+  const changeOrderStatus = async (orderId, newStatus) => {
+    try {
+      await orderAPI.updateOrderStatus(orderId, newStatus)
+      // 주문 목록과 재고 목록 새로고침
+      await loadOrders()
+      await loadInventory()
+    } catch (error) {
+      console.error('주문 상태 변경 오류:', error)
+      alert(`주문 상태 변경 중 오류가 발생했습니다: ${error.message}`)
     }
   }
 
@@ -318,8 +291,13 @@ function App() {
     <>
       {/* 메뉴 아이템 영역 */}
       <main className="menu-section">
-        <div className="menu-grid">
-          {menus.map(menu => (
+        {menusLoading ? (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <p>메뉴를 불러오는 중...</p>
+          </div>
+        ) : (
+          <div className="menu-grid">
+            {menus.map(menu => (
             <div key={menu.id} className="menu-card">
               <div className="menu-image">
                 <img 
@@ -362,7 +340,8 @@ function App() {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </main>
 
       {/* 장바구니 영역 */}
@@ -396,14 +375,14 @@ function App() {
             <div className="cart-total">
               <span className="total-label">총 금액</span>
               <span className="total-amount">{formatPrice(totalAmount)}</span>
-            </div>
+      </div>
             <button 
               className="order-btn"
               onClick={handleOrder}
               disabled={cart.length === 0}
             >
               주문하기
-            </button>
+        </button>
           </div>
         </div>
       </div>
@@ -424,8 +403,11 @@ function App() {
       {/* 재고 현황 */}
       <div className="inventory-section">
         <h2 className="section-title">재고 현황</h2>
-        <div className="inventory-grid">
-          {inventory.map(item => {
+        {inventoryLoading ? (
+          <p style={{ textAlign: 'center', padding: '1rem' }}>재고를 불러오는 중...</p>
+        ) : (
+          <div className="inventory-grid">
+            {inventory.map(item => {
             const status = getStockStatus(item.stock)
             return (
               <div key={item.id} className="inventory-card">
@@ -454,13 +436,16 @@ function App() {
               </div>
             )
           })}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* 주문 현황 */}
       <div className="order-status-section">
         <h2 className="section-title">주문 현황</h2>
-        {orders.length === 0 ? (
+        {ordersLoading ? (
+          <p style={{ textAlign: 'center', padding: '1rem' }}>주문을 불러오는 중...</p>
+        ) : orders.length === 0 ? (
           <p className="empty-message">주문이 없습니다.</p>
         ) : (
           <div className="order-list">
