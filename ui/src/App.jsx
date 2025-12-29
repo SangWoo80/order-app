@@ -2,6 +2,9 @@ import { useState } from 'react'
 import './App.css'
 
 function App() {
+  // 현재 화면 상태
+  const [currentScreen, setCurrentScreen] = useState('order') // 'order' or 'admin'
+
   // 메뉴 데이터
   const [menus] = useState([
     {
@@ -69,6 +72,27 @@ function App() {
         { name: '샷 추가', price: 500 },
         { name: '시럽 추가', price: 0 }
       ]
+    }
+  ])
+
+  // 재고 데이터 (관리자 화면에서 사용)
+  const [inventory, setInventory] = useState([
+    { id: 1, name: '아메리카노 (ICE)', stock: 10 },
+    { id: 2, name: '아메리카노 (HOT)', stock: 10 },
+    { id: 3, name: '카페라떼', stock: 10 }
+  ])
+
+  // 주문 데이터 (주문하기 화면에서 생성, 관리자 화면에서 표시)
+  const [orders, setOrders] = useState([
+    // 예시 주문 데이터
+    {
+      id: 1,
+      orderTime: new Date('2024-07-31T13:00:00'),
+      status: 'received', // 'received', 'preparing', 'completed'
+      items: [
+        { menuId: 1, menuName: '아메리카노(ICE)', quantity: 1, price: 4000 }
+      ],
+      totalAmount: 4000
     }
   ])
 
@@ -147,9 +171,60 @@ function App() {
       return
     }
     
+    // 새 주문 생성
+    const newOrder = {
+      id: Date.now(),
+      orderTime: new Date(),
+      status: 'received', // 주문 접수 상태
+      items: cart.map(item => ({
+        menuId: item.menuId,
+        menuName: item.menuName,
+        quantity: item.quantity,
+        price: item.totalPrice
+      })),
+      totalAmount: totalAmount
+    }
+
+    setOrders([newOrder, ...orders])
     alert(`주문이 완료되었습니다!\n총 금액: ${totalAmount.toLocaleString()}원`)
     setCart([])
     setSelectedOptions({})
+  }
+
+  // 재고 증가
+  const increaseStock = (menuId) => {
+    setInventory(inventory.map(item =>
+      item.id === menuId ? { ...item, stock: item.stock + 1 } : item
+    ))
+  }
+
+  // 재고 감소
+  const decreaseStock = (menuId) => {
+    setInventory(inventory.map(item =>
+      item.id === menuId && item.stock > 0 ? { ...item, stock: item.stock - 1 } : item
+    ))
+  }
+
+  // 재고 상태 확인
+  const getStockStatus = (stock) => {
+    if (stock === 0) return { text: '품절', color: '#ff4444' }
+    if (stock < 5) return { text: '주의', color: '#ff8800' }
+    return { text: '정상', color: '#00aa00' }
+  }
+
+  // 주문 상태 변경
+  const changeOrderStatus = (orderId, newStatus) => {
+    setOrders(orders.map(order =>
+      order.id === orderId ? { ...order, status: newStatus } : order
+    ))
+  }
+
+  // 주문 통계 계산
+  const orderStats = {
+    total: orders.length,
+    received: orders.filter(o => o.status === 'received').length,
+    preparing: orders.filter(o => o.status === 'preparing').length,
+    completed: orders.filter(o => o.status === 'completed').length
   }
 
   // 가격 포맷팅
@@ -157,17 +232,18 @@ function App() {
     return price.toLocaleString() + '원'
   }
 
-  return (
-    <div className="app">
-      {/* 헤더 */}
-      <header className="header">
-        <div className="logo">COZY</div>
-        <div className="nav-buttons">
-          <button className="nav-btn active">주문하기</button>
-          <button className="nav-btn">관리자</button>
-        </div>
-      </header>
+  // 날짜 포맷팅
+  const formatDate = (date) => {
+    const month = date.getMonth() + 1
+    const day = date.getDate()
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    return `${month}월 ${day}일 ${hours}:${minutes}`
+  }
 
+  // 주문하기 화면
+  const OrderScreen = () => (
+    <>
       {/* 메뉴 아이템 영역 */}
       <main className="menu-section">
         <div className="menu-grid">
@@ -253,6 +329,128 @@ function App() {
           </div>
         </div>
       </div>
+    </>
+  )
+
+  // 관리자 화면
+  const AdminScreen = () => (
+    <main className="admin-section">
+      {/* 관리자 대시보드 */}
+      <div className="admin-dashboard">
+        <h2 className="section-title">관리자 대시보드</h2>
+        <div className="dashboard-stats">
+          총 주문 {orderStats.total} / 주문 접수 {orderStats.received} / 제조 중 {orderStats.preparing} / 제조 완료 {orderStats.completed}
+        </div>
+      </div>
+
+      {/* 재고 현황 */}
+      <div className="inventory-section">
+        <h2 className="section-title">재고 현황</h2>
+        <div className="inventory-grid">
+          {inventory.map(item => {
+            const status = getStockStatus(item.stock)
+            return (
+              <div key={item.id} className="inventory-card">
+                <h3 className="inventory-name">{item.name}</h3>
+                <div className="inventory-info">
+                  <span className="inventory-stock">{item.stock}개</span>
+                  <span className="inventory-status" style={{ color: status.color }}>
+                    {status.text}
+                  </span>
+                </div>
+                <div className="inventory-controls">
+                  <button 
+                    className="stock-btn decrease"
+                    onClick={() => decreaseStock(item.id)}
+                    disabled={item.stock === 0}
+                  >
+                    -
+                  </button>
+                  <button 
+                    className="stock-btn increase"
+                    onClick={() => increaseStock(item.id)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 주문 현황 */}
+      <div className="order-status-section">
+        <h2 className="section-title">주문 현황</h2>
+        {orders.length === 0 ? (
+          <p className="empty-message">주문이 없습니다.</p>
+        ) : (
+          <div className="order-list">
+            {orders.map(order => (
+              <div key={order.id} className="order-item">
+                <div className="order-info">
+                  <div className="order-time">{formatDate(order.orderTime)}</div>
+                  <div className="order-details">
+                    {order.items.map((item, idx) => (
+                      <div key={idx} className="order-item-detail">
+                        {item.menuName} x {item.quantity}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="order-price">{formatPrice(order.totalAmount)}</div>
+                </div>
+                <div className="order-actions">
+                  {order.status === 'received' && (
+                    <button 
+                      className="status-btn preparing"
+                      onClick={() => changeOrderStatus(order.id, 'preparing')}
+                    >
+                      제조 시작
+                    </button>
+                  )}
+                  {order.status === 'preparing' && (
+                    <button 
+                      className="status-btn completed"
+                      onClick={() => changeOrderStatus(order.id, 'completed')}
+                    >
+                      제조 완료
+                    </button>
+                  )}
+                  {order.status === 'completed' && (
+                    <span className="status-completed">완료</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
+  )
+
+  return (
+    <div className="app">
+      {/* 헤더 */}
+      <header className="header">
+        <div className="logo">COZY</div>
+        <div className="nav-buttons">
+          <button 
+            className={`nav-btn ${currentScreen === 'order' ? 'active' : ''}`}
+            onClick={() => setCurrentScreen('order')}
+          >
+            주문하기
+          </button>
+          <button 
+            className={`nav-btn ${currentScreen === 'admin' ? 'active' : ''}`}
+            onClick={() => setCurrentScreen('admin')}
+          >
+            관리자
+          </button>
+        </div>
+      </header>
+
+      {/* 화면 전환 */}
+      {currentScreen === 'order' ? <OrderScreen /> : <AdminScreen />}
     </div>
   )
 }
