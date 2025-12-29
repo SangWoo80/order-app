@@ -66,7 +66,7 @@ YAML 파일 없이 Render Dashboard에서 직접 설정하는 방법입니다.
    - **Name**: `coffee-order-api`
    - **Region**: 데이터베이스와 같은 지역 선택
    - **Branch**: `main`
-   - **Root Directory**: `server` ⚠️ **중요: server 입력**
+   - **Root Directory**: `server` ⚠️ **반드시 입력!** (빈 값이면 "Cannot find module" 오류 발생)
    - **Runtime**: `Node` 선택
    - **Build Command**: `npm install`
    - **Start Command**: `npm start`

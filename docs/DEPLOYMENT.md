@@ -79,7 +79,7 @@
    - **Name**: `coffee-order-api` (원하는 이름, 영어와 하이픈만 사용)
    - **Region**: 데이터베이스와 같은 지역 선택 (예: Oregon, Singapore 등)
    - **Branch**: `main` (또는 배포할 브랜치 이름)
-   - **Root Directory**: `server` 입력 (서버 폴더가 루트가 아닌 경우)
+   - **Root Directory**: `server` 입력 ⚠️ **반드시 입력!** (빈 값이면 "Cannot find module '/opt/render/project/src/server/index.js'" 오류 발생)
    - **Runtime**: 드롭다운에서 `Node` 선택
    - **Build Command**: `npm install` 입력
    - **Start Command**: `npm start` 입력
